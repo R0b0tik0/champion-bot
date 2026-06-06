@@ -316,8 +316,8 @@
           <div class="value" id="codeDisplay">CEDDF3DE</div>
         </div>
         <div class="config-item">
-          <div class="label">Email Temp</div>
-          <div class="value">mail.tm</div>
+          <div class="label">Correo del Bot</div>
+          <div class="value" id="botEmailConfig">Guerrilla Mail</div>
         </div>
         <div class="config-item">
           <div class="label">Estado</div>
@@ -344,11 +344,9 @@
     <div id="resultContainer"></div>
 
     <div class="card email-card" id="emailCard">
-      <h2>📧 Bandeja de entrada temporal</h2>
-      <div id="emailInitArea">
-        <button class="btn-email primary" id="btnInitEmail" onclick="initEmail()">
-          📬 Iniciar Email Temporal
-        </button>
+      <h2>📧 Correo del Bot</h2>
+      <div id="emailLoadingArea">
+        <div class="loading-spinner" id="emailLoadingMsg">Descubriendo correo del bot...</div>
       </div>
       <div id="emailInboxArea" style="display:none">
         <div class="email-address-display">
@@ -357,10 +355,9 @@
         </div>
         <div class="email-actions">
           <button class="btn-email primary small" id="btnRefreshInbox" onclick="loadInbox()">🔄 Refrescar</button>
-          <button class="btn-email danger small" onclick="deleteEmailAccount()">🗑️ Eliminar cuenta</button>
         </div>
         <div id="inboxContent">
-          <div class="inbox-empty">Presiona "Refrescar" para cargar los mensajes</div>
+          <div class="inbox-empty">Cargando mensajes...</div>
         </div>
         <div id="messageDetail" style="display:none"></div>
         <div class="email-status" id="emailStatus"></div>
@@ -368,7 +365,7 @@
     </div>
 
     <div class="footer">
-      Hecho con ❤️ para eventos Ybarra | mail.tm + Playwright
+      Hecho con ❤️ para eventos Ybarra | Guerrilla Mail + Playwright
     </div>
   </div>
 
@@ -379,6 +376,7 @@
     let statusPollInterval = null;
 
     document.getElementById('btnStart').addEventListener('click', startBot);
+    discoverEmail();
 
     function startBot() {
       const btn = document.getElementById('btnStart');
@@ -411,6 +409,7 @@
           }
           btn.textContent = '🔄 EJECUTANDO...';
           pollLogs();
+          discoverEmail();
         })
         .catch(err => {
           addLog(`❌ Error de conexión: ${err.message}`);
@@ -552,12 +551,7 @@
     // --- Email Inbox ---
     let emailAddress = null;
 
-    async function initEmail() {
-      const btn = document.getElementById('btnInitEmail');
-      btn.disabled = true;
-      btn.textContent = '⏳ CREANDO...';
-      setEmailStatus('Creando cuenta de email temporal...');
-
+    async function discoverEmail() {
       try {
         const res = await fetch('/api/email/init', { method: 'POST' });
         const data = await res.json();
@@ -565,15 +559,14 @@
 
         emailAddress = data.address;
         document.getElementById('emailAddressDisplay').textContent = emailAddress;
-        document.getElementById('emailInitArea').style.display = 'none';
+        document.getElementById('botEmailConfig').textContent = emailAddress;
+        document.getElementById('emailLoadingArea').style.display = 'none';
         document.getElementById('emailInboxArea').style.display = 'block';
-        setEmailStatus(data.restored ? 'Sesión restaurada correctamente' : 'Cuenta nueva creada');
-
+        setEmailStatus(data.fromBot ? 'Correo del bot' : 'Correo activo');
         loadInbox();
       } catch (err) {
-        setEmailStatus(`Error: ${err.message}`);
-        btn.disabled = false;
-        btn.textContent = '📬 Reintentar';
+        document.getElementById('emailLoadingMsg').textContent = 'Ejecuta el bot para ver el correo';
+        document.getElementById('botEmailConfig').textContent = 'Guerrilla Mail';
       }
     }
 
@@ -664,7 +657,7 @@
     }
 
     async function deleteEmailAccount() {
-      if (!confirm('Eliminar la cuenta de email temporal? Los mensajes se perderan.')) return;
+      if (!confirm('Eliminar la cuenta de email? Los mensajes se perderan.')) return;
 
       setEmailStatus('Eliminando cuenta...');
       try {
@@ -673,9 +666,9 @@
         if (data.error) throw new Error(data.error);
 
         document.getElementById('emailInboxArea').style.display = 'none';
-        document.getElementById('emailInitArea').style.display = 'block';
-        document.getElementById('btnInitEmail').disabled = false;
-        document.getElementById('btnInitEmail').textContent = '📬 Iniciar Email Temporal';
+        document.getElementById('emailLoadingArea').style.display = 'block';
+        document.getElementById('emailLoadingMsg').textContent = 'Cuenta eliminada. Ejecuta el bot para crear una nueva.';
+        document.getElementById('botEmailConfig').textContent = 'Guerrilla Mail';
         setEmailStatus('Cuenta eliminada');
       } catch (err) {
         setEmailStatus('Error: ' + err.message);
