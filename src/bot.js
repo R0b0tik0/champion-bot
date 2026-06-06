@@ -254,14 +254,22 @@ async function runBot(options = {}) {
     const prizeType = identifyPrize(prizeInfo, log);
 
     // ========================================
-    // FASE 9: Tomar screenshot del resultado
+    // FASE 9: Capturar screenshot del premio
     // ========================================
-    log('=== FASE 9: Capturando evidencia ===');
-    await page.screenshot({
-      path: '/tmp/prize.png',
-      fullPage: true,
-    });
-    log('Screenshot guardado');
+    log('=== FASE 9: Capturando screenshot ===');
+    let prizeScreenshot = null;
+    try {
+      const prizeEl = await page.$('#prize');
+      if (prizeEl) {
+        const screenshotBuffer = await prizeEl.screenshot();
+        prizeScreenshot = 'data:image/png;base64,' + screenshotBuffer.toString('base64');
+        log('Screenshot del premio capturado');
+      } else {
+        log('Elemento #prize no encontrado para screenshot');
+      }
+    } catch (err) {
+      log(`Error capturando screenshot: ${err.message}`);
+    }
 
     // ========================================
     // FASE 10: Esperar email de confirmación
@@ -310,6 +318,7 @@ async function runBot(options = {}) {
       emailUsed: emailAddress,
       city: cityName,
       prize: prizeInfo,
+      prizeScreenshot: prizeScreenshot,
       prizeType: prizeType,
       exchangeCode: exchangeCode || prizeInfo?.possibleCode || null,
       confirmationLink: confirmationLink || null,
