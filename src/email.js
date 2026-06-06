@@ -26,17 +26,51 @@ class TempEmail {
   }
 
   /**
+   * Dominio de fallback por si la API rate-limit o está caída
+   * Confirmado funcionando: wshu.net
+   */
+  static FALLBACK_DOMAIN = 'wshu.net';
+
+  /**
    * Obtiene los dominios disponibles en mail.tm
+   * Reintenta hasta 3 veces con backoff ante rate limiting (8 QPS / IP)
    */
   async _fetchDomains() {
-    const res = await fetch(`${API_BASE}/domains`, {
-      headers: { Accept: 'application/json' },
-    });
-    if (!res.ok) throw new Error(`Error fetching domains: ${res.status}`);
-    const data = await res.json();
-    const domains = data['hydra:member'] || [];
-    if (domains.length === 0) throw new Error('No domains available');
-    return domains;
+    const maxRetries = 3;
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const res = await fetch(`${API_BASE}/domains`, {
+          headers: { Accept: 'application/json' },
+        });
+
+        if (res.status === 429) {
+          this.logger(`Rate limited (429), reintento ${attempt}/${maxRetries}...`);
+          await new Promise((r) => setTimeout(r, 2000 * attempt));
+          continue;
+        }
+
+        if (!res.ok) {
+          this.logger(`Error HTTP ${res.status} en domains, reintento ${attempt}/${maxRetries}...`);
+          await new Promise((r) => setTimeout(r, 1000 * attempt));
+          continue;
+        }
+
+        const data = await res.json();
+        const domains = data['hydra:member'] || [];
+        if (domains.length > 0) {
+          return domains;
+        }
+
+        this.logger(`API devolvió 0 dominios, reintento ${attempt}/${maxRetries}...`);
+        await new Promise((r) => setTimeout(r, 1000 * attempt));
+      } catch (err) {
+        this.logger(`Error de red: ${err.message}, reintento ${attempt}/${maxRetries}...`);
+        await new Promise((r) => setTimeout(r, 1000 * attempt));
+      }
+    }
+
+    this.logger(`Usando dominio de fallback: ${TempEmail.FALLBACK_DOMAIN}`);
+    return [{ domain: TempEmail.FALLBACK_DOMAIN }];
   }
 
   /**
