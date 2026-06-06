@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: champion-bot
+    env: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    envVars:
+      - key: PORT
+        value: 3000
+      - key: CITY_CODE
+        value: CEDDF3DE
+      - key: CITY_NAME
+        value: SAN FERNANDO
+      - key: HEADLESS
+        value: "true"
