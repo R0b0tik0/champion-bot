@@ -82,47 +82,31 @@ app.get('/api/status', (req, res) => {
 });
 
 // --- Email Temp State ---
-let emailSession = null; // { address, password, accountId, token }
+let emailSession = null; // { address, sid, auth, emailTimestamp }
 
 app.post('/api/email/init', async (req, res) => {
   try {
     const email = new TempEmail();
 
-    // Intentar restaurar sesión guardada
     if (emailSession) {
-      email.logger('Restaurando sesión existente...');
       email.restoreSession(
         emailSession.address,
-        emailSession.password,
-        emailSession.accountId,
-        emailSession.token
+        emailSession.sid,
+        emailSession.auth
       );
-      // Verificar que el token sigue siendo válido
-      try {
-        await email.getMessages();
-        email.logger('Sesión restaurada correctamente');
-        return res.json({ address: email.address, restored: true });
-      } catch {
-        email.logger('Token expirado, obteniendo nuevo token...');
-        await email.restoreSession(
-          emailSession.address,
-          emailSession.password,
-          emailSession.accountId
-        );
-        await email._authenticate();
-      }
     } else {
       await email.createAccount();
+      email.logger(`Email creado: ${email.address}`);
     }
 
     emailSession = {
       address: email.address,
-      password: email.password,
-      accountId: email.accountId,
-      token: email.token,
+      sid: email.sid,
+      auth: email.auth,
+      emailTimestamp: email.emailTimestamp,
     };
 
-    res.json({ address: email.address, restored: false });
+    res.json({ address: email.address, restored: !!emailSession });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -130,16 +114,11 @@ app.post('/api/email/init', async (req, res) => {
 
 app.get('/api/email/inbox', async (req, res) => {
   try {
-    const email = new TempEmail();
     if (!emailSession) {
       return res.status(400).json({ error: 'No hay sesión de email activa. Inicia primero.' });
     }
-    email.restoreSession(
-      emailSession.address,
-      emailSession.password,
-      emailSession.accountId,
-      emailSession.token
-    );
+    const email = new TempEmail();
+    email.restoreSession(emailSession.address, emailSession.sid, emailSession.auth);
     const data = await email.getMessages();
     const messages = (data['hydra:member'] || []).map((msg) => ({
       id: msg.id,
@@ -147,7 +126,6 @@ app.get('/api/email/inbox', async (req, res) => {
       subject: msg.subject,
       intro: msg.intro,
       createdAt: msg.createdAt,
-      hasAttachments: msg.hasAttachments,
     }));
     res.json({ messages, total: data['hydra:totalItems'] || messages.length });
   } catch (err) {
@@ -157,16 +135,11 @@ app.get('/api/email/inbox', async (req, res) => {
 
 app.get('/api/email/read/:id', async (req, res) => {
   try {
-    const email = new TempEmail();
     if (!emailSession) {
       return res.status(400).json({ error: 'No hay sesión de email activa.' });
     }
-    email.restoreSession(
-      emailSession.address,
-      emailSession.password,
-      emailSession.accountId,
-      emailSession.token
-    );
+    const email = new TempEmail();
+    email.restoreSession(emailSession.address, emailSession.sid, emailSession.auth);
     const msg = await email.getMessage(req.params.id);
     res.json(msg);
   } catch (err) {
@@ -176,20 +149,12 @@ app.get('/api/email/read/:id', async (req, res) => {
 
 app.delete('/api/email/delete/:id', async (req, res) => {
   try {
-    const email = new TempEmail();
     if (!emailSession) {
       return res.status(400).json({ error: 'No hay sesión de email activa.' });
     }
-    email.restoreSession(
-      emailSession.address,
-      emailSession.password,
-      emailSession.accountId,
-      emailSession.token
-    );
-    await fetch(`https://api.mail.tm/messages/${req.params.id}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${email.token}` },
-    });
+    const email = new TempEmail();
+    email.restoreSession(emailSession.address, emailSession.sid, emailSession.auth);
+    await email._apiCall('del_email', { sid: email.sid, email_ids: req.params.id });
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -198,16 +163,11 @@ app.delete('/api/email/delete/:id', async (req, res) => {
 
 app.post('/api/email/delete-account', async (req, res) => {
   try {
-    const email = new TempEmail();
     if (!emailSession) {
       return res.status(400).json({ error: 'No hay sesión de email activa.' });
     }
-    email.restoreSession(
-      emailSession.address,
-      emailSession.password,
-      emailSession.accountId,
-      emailSession.token
-    );
+    const email = new TempEmail();
+    email.restoreSession(emailSession.address, emailSession.sid, emailSession.auth);
     await email.deleteAccount();
     emailSession = null;
     res.json({ success: true });
