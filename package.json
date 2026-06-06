@@ -1,0 +1,15 @@
+{
+  "name": "champion-bot",
+  "version": "1.0.0",
+  "description": "Bot automatizado para el juego The Champions Burger de Ybarra",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "playwright": "^1.52.0",
+    "node-fetch": "^2.7.0"
+  }
+}
