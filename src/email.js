@@ -1,4 +1,4 @@
-const API_BASE = 'https://api.guerrillamail.com/ajax.php';
+const API_BASE = 'https://tempmailc.com/api/v1';
 const POLL_INTERVAL_MS = 3000;
 const MAX_POLL_TIME_MS = 120000;
 
@@ -6,57 +6,31 @@ class TempEmail {
   constructor(logger) {
     this.logger = logger || ((msg) => console.log(`[email] ${msg}`));
     this.address = null;
-    this.sid = null;
-    this.auth = null;
-    this.emailTimestamp = null;
-    this._cookies = '';
   }
 
-  async _apiCall(func, params = {}) {
-    const url = new URL(API_BASE);
-    url.searchParams.set('f', func);
-    url.searchParams.set('ip', '127.0.0.1');
-    url.searchParams.set('agent', 'Mozilla/5.0');
-    for (const [k, v] of Object.entries(params)) {
-      if (v !== undefined && v !== null) {
-        url.searchParams.set(k, String(v));
-      }
-    }
-
-    const headers = {};
-    if (this._cookies) {
-      headers['Cookie'] = this._cookies;
-    }
-
-    const res = await fetch(url.toString(), { headers });
-
-    const setCookie = res.headers.get('set-cookie');
-    if (setCookie) {
-      this._cookies = setCookie.split(';')[0];
-    }
-
-    return res.json();
+  async _fetch(url) {
+    const res = await fetch(url);
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'API error');
+    return data;
   }
 
   async createAccount() {
-    const data = await this._apiCall('get_email_address');
-    this.address = data.email_addr;
-    this.sid = data.sid;
-    this.auth = data.auth;
-    this.emailTimestamp = data.email_timestamp;
+    const data = await this._fetch(`${API_BASE}/new`);
+    this.address = data.email;
     this.logger(`Email temporal: ${this.address}`);
     return this.address;
   }
 
   async getMessages() {
-    const data = await this._apiCall('check_email', { sid: this.sid, seq: 0 });
-    const messages = (data.list || []).map((msg) => ({
-      id: String(msg.mail_id),
-      from: msg.mail_from,
-      subject: msg.mail_subject,
-      intro: msg.mail_excerpt,
-      createdAt: new Date((msg.mail_timestamp || 0) * 1000).toISOString(),
-      mail_read: msg.mail_read,
+    if (!this.address) throw new Error('No email address');
+    const data = await this._fetch(`${API_BASE}/inbox?email=${encodeURIComponent(this.address)}`);
+    const messages = (data.messages || []).map((msg) => ({
+      id: String(msg.id),
+      from: msg.from || '',
+      subject: msg.subject || '',
+      intro: msg.intro || '',
+      createdAt: msg.ts ? new Date((msg.ts || 0) * 1000).toISOString() : '',
     }));
     return {
       'hydra:member': messages,
@@ -65,17 +39,16 @@ class TempEmail {
   }
 
   async getMessage(messageId) {
-    const data = await this._apiCall('fetch_email', {
-      sid: this.sid,
-      email_id: messageId,
-    });
+    const data = await this._fetch(
+      `${API_BASE}/message?email=${encodeURIComponent(this.address)}&msg_id=${messageId}`
+    );
     return {
-      id: String(data.mail_id),
-      from: data.mail_from || '',
-      subject: data.mail_subject || '',
-      html: [data.mail_body || ''],
-      text: [data.mail_body || ''],
-      createdAt: new Date((data.mail_timestamp || 0) * 1000).toISOString(),
+      id: String(messageId),
+      from: data.from || '',
+      subject: data.subject || '',
+      html: [data.html || ''],
+      text: [data.text || ''],
+      createdAt: new Date().toISOString(),
     };
   }
 
@@ -86,13 +59,13 @@ class TempEmail {
     this.logger(`Esperando email... (timeout: ${timeoutMs / 1000}s)`);
 
     while (Date.now() - startTime < timeoutMs) {
-      const data = await this._apiCall('check_email', { sid: this.sid, seq: 0 });
-      const messages = (data.list || []).map((msg) => ({
-        id: String(msg.mail_id),
-        from: msg.mail_from,
-        subject: msg.mail_subject,
-        intro: msg.mail_excerpt,
-        createdAt: new Date((msg.mail_timestamp || 0) * 1000).toISOString(),
+      const data = await this._fetch(`${API_BASE}/inbox?email=${encodeURIComponent(this.address)}`);
+      const messages = (data.messages || []).map((msg) => ({
+        id: String(msg.id),
+        from: msg.from,
+        subject: msg.subject,
+        intro: msg.intro || '',
+        createdAt: msg.ts ? new Date((msg.ts || 0) * 1000).toISOString() : '',
       }));
 
       const matchingMsg = messages.find(filterFn);
@@ -140,26 +113,28 @@ class TempEmail {
     return null;
   }
 
-  restoreSession(address, sid, auth) {
+  restoreSession(address) {
     if (!address) {
       throw new Error('Address is required to restore a session');
     }
     this.address = address;
-    this.sid = sid || null;
-    this.auth = auth || null;
     this.logger(`Sesión restaurada: ${this.address}`);
     return this.address;
   }
 
-  async deleteAccount() {
+  async deleteMessage(messageId) {
     try {
-      if (this.sid) {
-        await this._apiCall('forget_me', { sid: this.sid });
-      }
-      this.logger('Cuenta temporal eliminada');
+      await fetch(
+        `${API_BASE}/message?email=${encodeURIComponent(this.address)}&msg_id=${messageId}`,
+        { method: 'DELETE' }
+      );
     } catch (err) {
-      this.logger(`Error al eliminar cuenta: ${err.message}`);
+      this.logger(`Error al eliminar mensaje: ${err.message}`);
     }
+  }
+
+  async deleteAccount() {
+    this.logger('Cuenta descartada (expirar automáticamente)');
   }
 }
 

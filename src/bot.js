@@ -55,12 +55,7 @@ async function runBot(options = {}) {
     tempEmail = new TempEmail(log);
     const emailAddress = await tempEmail.createAccount();
     log(`Email temporal: ${emailAddress}`);
-    onEmailCreated({
-      address: tempEmail.address,
-      sid: tempEmail.sid,
-      auth: tempEmail.auth,
-      emailTimestamp: tempEmail.emailTimestamp,
-    });
+    onEmailCreated({ address: tempEmail.address });
 
     // ========================================
     // FASE 2: Iniciar navegador
@@ -457,12 +452,14 @@ function identifyPrize(prizeInfo, log) {
 }
 
 /**
- * Hace polling hasta que aparece #prize o #loser (máx 30s).
+ * Detecta el resultado del juego. Primero espera que aparezca visible,
+ * pero si tras 6s los dos siguen ocultos lee el contenido directamente.
  * Devuelve 'prize', 'loser' o null si timeout.
  */
 async function pollForResult(page, log) {
   const timeout = 30000;
   const start = Date.now();
+  let forceCheckDone = false;
 
   while (Date.now() - start < timeout) {
     const state = await page.evaluate(() => {
@@ -473,13 +470,42 @@ async function pollForResult(page, log) {
         loserVisible: loser && !loser.classList.contains('hidden'),
         prizeExists: !!prize,
         loserExists: !!loser,
+        prizeContent: prize ? (prize.textContent || '').trim() : '',
+        loserContent: loser ? (loser.textContent || '').trim() : '',
       };
     });
 
     if (state.prizeVisible) return 'prize';
     if (state.loserVisible) return 'loser';
 
+    // Si los dos existen pero están ocultos tras 6s, leer contenido directamente
     const elapsed = Math.round((Date.now() - start) / 1000);
+    if (elapsed >= 6 && !forceCheckDone && state.prizeExists && state.loserExists) {
+      forceCheckDone = true;
+      log('Secciones ocultas, leyendo contenido directamente...');
+
+      const winner = await page.evaluate(() => {
+        const prize = document.querySelector('#prize');
+        const loser = document.querySelector('#loser');
+        const prizeText = prize ? (prize.textContent || '').trim() : '';
+        const loserText = loser ? (loser.textContent || '').trim() : '';
+
+        // Si prize tiene contenido sustancial, es que se ganó
+        if (prizeText.length > 80 || prizeText.toLowerCase().includes('premio') || prizeText.toLowerCase().includes('código') || prizeText.toLowerCase().includes('enhorabuena')) {
+          return 'prize';
+        }
+        if (loserText.length > 30 || loserText.toLowerCase().includes('perdido') || loserText.toLowerCase().includes('vuelve a intentarlo')) {
+          return 'loser';
+        }
+        return null;
+      });
+
+      if (winner) {
+        log(`Resultado detectado por contenido: ${winner}`);
+        return winner;
+      }
+    }
+
     if (elapsed > 0 && elapsed % 5 === 0) {
       log(`Esperando resultado... ${elapsed}s (prize:${state.prizeExists}, loser:${state.loserExists})`);
     }
