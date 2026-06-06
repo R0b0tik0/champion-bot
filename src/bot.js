@@ -34,6 +34,7 @@ async function runBot(options = {}) {
     cityName = 'SAN FERNANDO',
     headless = true,
     onLog = () => {},
+    onEmailCreated = () => {},
   } = options;
 
   const log = (msg) => {
@@ -54,6 +55,12 @@ async function runBot(options = {}) {
     tempEmail = new TempEmail(log);
     const emailAddress = await tempEmail.createAccount();
     log(`Email temporal: ${emailAddress}`);
+    onEmailCreated({
+      address: tempEmail.address,
+      sid: tempEmail.sid,
+      auth: tempEmail.auth,
+      emailTimestamp: tempEmail.emailTimestamp,
+    });
 
     // ========================================
     // FASE 2: Iniciar navegador
@@ -191,15 +198,21 @@ async function runBot(options = {}) {
     // ========================================
     log('=== FASE 7: Esperando resultado ===');
 
-    // Esperar a que aparezca la pantalla de premio o de perder
-    const result = await Promise.race([
-      page.waitForSelector('#prize:not(.hidden)', { timeout: 15000 }).then(() => 'prize'),
-      page.waitForSelector('#loser:not(.hidden)', { timeout: 15000 }).then(() => 'loser'),
-    ]);
+    const result = await pollForResult(page, log);
+
+    if (!result) {
+      await page.screenshot({ path: '/tmp/result_timeout.png', fullPage: true }).catch(() => {});
+      const debugHtml = await page.evaluate(() => document.body.innerHTML.substring(0, 3000)).catch(() => '');
+      log(`DEBUG - HTML del body: ${debugHtml.substring(0, 500)}`);
+      return {
+        success: false,
+        stage: 'result_timeout',
+        message: 'No apareció la pantalla de resultado',
+      };
+    }
 
     if (result === 'loser') {
       log('RESULTADO: Has perdido :( El juego no se completó a tiempo');
-      // Tomar screenshot para debug
       await page.screenshot({ path: '/tmp/loser.png', fullPage: true }).catch(() => {});
       return {
         success: false,
@@ -441,6 +454,41 @@ function identifyPrize(prizeInfo, log) {
 
   log('Tipo de premio no identificado (nuevo diseño?)');
   return 'desconocido';
+}
+
+/**
+ * Hace polling hasta que aparece #prize o #loser (máx 30s).
+ * Devuelve 'prize', 'loser' o null si timeout.
+ */
+async function pollForResult(page, log) {
+  const timeout = 30000;
+  const start = Date.now();
+
+  while (Date.now() - start < timeout) {
+    const state = await page.evaluate(() => {
+      const prize = document.querySelector('#prize');
+      const loser = document.querySelector('#loser');
+      return {
+        prizeVisible: prize && !prize.classList.contains('hidden'),
+        loserVisible: loser && !loser.classList.contains('hidden'),
+        prizeExists: !!prize,
+        loserExists: !!loser,
+      };
+    });
+
+    if (state.prizeVisible) return 'prize';
+    if (state.loserVisible) return 'loser';
+
+    const elapsed = Math.round((Date.now() - start) / 1000);
+    if (elapsed > 0 && elapsed % 5 === 0) {
+      log(`Esperando resultado... ${elapsed}s (prize:${state.prizeExists}, loser:${state.loserExists})`);
+    }
+
+    await page.waitForTimeout(500);
+  }
+
+  log(`Timeout tras ${timeout / 1000}s esperando resultado`);
+  return null;
 }
 
 module.exports = { runBot };
