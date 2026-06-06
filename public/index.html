@@ -495,6 +495,15 @@
           `;
         }
 
+        if (result.confirmationLink) {
+          prizeHtml += `
+            <div class="field"><span class="key">Enlace</span><span class="value">
+              <a href="${result.confirmationLink}" target="_blank" rel="noopener" style="color:#4fc3f7;word-break:break-all;font-size:0.8rem;">${result.confirmationLink.substring(0, 80)}...</a>
+              <button class="copy-btn" onclick="copyToClipboard('${result.confirmationLink}')">📋 Copiar</button>
+            </span></div>
+          `;
+        }
+
         if (result.prize && result.prize.images && result.prize.images.length > 0) {
           prizeHtml += `<div class="prize-images">`;
           for (const img of result.prize.images) {
@@ -516,6 +525,9 @@
         }
         if (result.exchangeCode) {
           addLog(`🔑 Código de canjeo: ${result.exchangeCode}`);
+        }
+        if (result.confirmationLink) {
+          addLog(`🔗 Enlace: ${result.confirmationLink}`);
         }
       } else {
         document.getElementById('statusBadge').textContent = '❌ ERROR';

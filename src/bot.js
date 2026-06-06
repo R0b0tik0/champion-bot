@@ -269,18 +269,27 @@ async function runBot(options = {}) {
     // ========================================
     log('=== FASE 10: Esperando email de confirmación ===');
     let exchangeCode = null;
+    let confirmationLink = null;
 
     try {
-      const emailMsg = await tempEmail.waitForMessage(
-        (msg) => msg.subject && msg.subject.toLowerCase().includes('champion'),
-        120000
-      );
-      log('Email de confirmación recibido');
+      // Aceptar cualquier email que llegue (ya no hay welcome email con este proveedor)
+      const emailMsg = await tempEmail.waitForMessage(() => true, 120000);
+      log(`Email recibido: "${emailMsg.subject}"`);
+
+      // Extraer código de canjeo
       exchangeCode = tempEmail.extractExchangeCode(emailMsg);
       if (exchangeCode) {
-        log(`Código de canjeo extraído: ${exchangeCode}`);
+        log(`Código de canjeo: ${exchangeCode}`);
+      }
+
+      // Extraer enlace de confirmación (mandrillapp)
+      const body = (emailMsg.html && emailMsg.html[0]) || (emailMsg.text && emailMsg.text[0]) || '';
+      const linkMatch = body.match(/https?:\/\/mandrillapp\.com\/track\/[^\s"']+/);
+      if (linkMatch) {
+        confirmationLink = linkMatch[0].replace(/&amp;/g, '&');
+        log(`Enlace de confirmación: ${confirmationLink}`);
       } else {
-        log('No se encontró código de canjeo en el email');
+        log('No se encontró enlace de confirmación en el email');
       }
     } catch (err) {
       log(`No se recibió email de confirmación: ${err.message}`);
@@ -304,6 +313,7 @@ async function runBot(options = {}) {
       prize: prizeInfo,
       prizeType: prizeType,
       exchangeCode: exchangeCode || prizeInfo?.possibleCode || null,
+      confirmationLink: confirmationLink || null,
       timestamp: new Date().toISOString(),
     };
   } catch (error) {
