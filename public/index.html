@@ -478,15 +478,27 @@
           'descuento_30': '🏷️', 'salsas': '🧂', 'dipeo': '📦'
         }[prizeType] || '🎁';
 
+        const prizeNameMap = {
+          'bebida': 'BEBIDA',
+          'patatas': 'PATATAS',
+          'hamburguesa': 'HAMBURGUESA',
+          'descuento_30': 'DESCUENTO 30%',
+          'salsas': 'SALSAS',
+          'dipeo': 'DIPEO',
+        };
+        const prizeLabel = prizeNameMap[prizeType] || prizeType.toUpperCase();
+
         let prizeHtml = `
           <div class="card result-card" style="text-align:center;">
-            <h3 style="font-size:1.4rem;margin-bottom:16px;">${prizeEmoji} ¡Premio obtenido!</h3>
+            <div style="font-size:3rem;line-height:1;">${prizeEmoji}</div>
+            <div style="font-size:1.2rem;font-weight:700;margin:8px 0 4px;letter-spacing:1px;">${prizeLabel}</div>
+            <div style="font-size:0.8rem;opacity:0.6;">PREMIADO</div>
         `;
 
         if (result.prize && result.prize.images && result.prize.images.length > 0) {
-          prizeHtml += `<div class="prize-images" style="justify-content:center;">`;
+          prizeHtml += `<div style="margin:16px auto 0;max-width:280px;height:180px;overflow:hidden;border-radius:12px;">`;
           for (const img of result.prize.images) {
-            prizeHtml += `<img src="${img}" alt="Prize image" onerror="this.style.display='none'" style="max-width:280px;width:100%;border-radius:12px;">`;
+            prizeHtml += `<img src="${img}" alt="" onerror="this.parentElement.style.display='none'" style="width:100%;height:100%;object-fit:cover;object-position:center bottom;">`;
           }
           prizeHtml += `</div>`;
         }
