@@ -134,7 +134,8 @@ async function runBot(options = {}) {
     await page.selectOption('select[name="pack-code"]', cityCode);
 
     // Aceptar términos y condiciones
-    await page.click('#policy1');
+    // El checkbox input está oculto (display:none), clickeamos el label
+    await page.click('label[for="policy1"]');
 
     await page.waitForTimeout(500);
 
