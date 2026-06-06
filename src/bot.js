@@ -126,23 +126,42 @@ async function runBot(options = {}) {
     log(`Email: ${emailAddress}`);
     log(`Ciudad: ${cityName} (${cityCode})`);
 
-    // Rellenar email
+    // Rellenar email y disparar blur para Parsley.js
     const emailInput = page.locator('input[name="email"]');
     await emailInput.fill(emailAddress);
+    await page.evaluate(() => {
+      const el = document.querySelector('input[name="email"]');
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+      el.blur();
+    });
 
     // Seleccionar ciudad
     await page.selectOption('select[name="pack-code"]', cityCode);
 
     // Aceptar términos y condiciones
-    // El checkbox input está oculto (display:none), clickeamos el label
-    await page.click('label[for="policy1"]');
+    // El checkbox está oculto (display:none) - usamos JS para marcarlo + evento change
+    await page.evaluate(() => {
+      const cb = document.getElementById('policy1');
+      if (cb) {
+        cb.checked = true;
+        cb.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    });
 
     await page.waitForTimeout(500);
+
+    // Verificar que el checkbox esté marcado
+    const isChecked = await page.evaluate(() => {
+      const cb = document.getElementById('policy1');
+      return cb ? cb.checked : false;
+    });
+    log(`Checkbox términos: ${isChecked ? '✓ marcado' : '✗ NO marcado'}`);
 
     // Click "Continuar" para ir al pre-game
     log('Enviando formulario...');
     await page.click('button.js-btn-to-pregame');
-    await page.waitForTimeout(1000);
+    await page.waitForTimeout(2000);
 
     // ========================================
     // FASE 5: Pre-game → Jugar
