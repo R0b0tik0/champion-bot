@@ -265,7 +265,7 @@ async function runBot(options = {}) {
     try {
       const emailMsg = await tempEmail.waitForMessage(
         (msg) => msg.subject && msg.subject.toLowerCase().includes('champion'),
-        60000
+        120000
       );
       log('Email de confirmación recibido');
       exchangeCode = tempEmail.extractExchangeCode(emailMsg);

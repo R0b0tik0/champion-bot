@@ -47,20 +47,21 @@ app.post('/api/start', async (req, res) => {
     onLog: log,
   })
     .then((result) => {
-      botStatus.running = false;
       botStatus.result = result;
       botStatus.endTime = new Date().toISOString();
-      if (result.success) {
+      if (result && result.success) {
         log('✅ Bot completado exitosamente');
       } else {
-        log(`❌ Bot falló: ${result.error || result.message || 'Error desconocido'}`);
+        log(`❌ Bot falló: ${(result && result.error) || (result && result.message) || 'Error desconocido'}`);
       }
     })
     .catch((err) => {
-      botStatus.running = false;
       botStatus.result = { success: false, error: err.message };
       botStatus.endTime = new Date().toISOString();
       log(`❌ Error crítico: ${err.message}`);
+    })
+    .finally(() => {
+      botStatus.running = false;
     });
 
   res.json({ status: 'started' });
