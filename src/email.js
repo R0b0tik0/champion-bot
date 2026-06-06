@@ -244,6 +244,21 @@ class TempEmail {
   }
 
   /**
+   * Restaura una sesión existente con credenciales guardadas
+   */
+  restoreSession(address, password, accountId, token) {
+    if (!address || !password) {
+      throw new Error('Address and password are required to restore a session');
+    }
+    this.address = address;
+    this.password = password;
+    this.accountId = accountId || null;
+    this.token = token || null;
+    this.logger(`Sesión restaurada: ${this.address}`);
+    return this.address;
+  }
+
+  /**
    * Elimina la cuenta temporal
    */
   async deleteAccount() {

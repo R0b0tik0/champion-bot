@@ -215,6 +215,83 @@
     .copy-btn:hover {
       background: rgba(255,255,255,0.25);
     }
+    /* --- Inbox Styles --- */
+    .email-card .email-address-display {
+      background: rgba(255,255,255,0.08);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 0.9rem;
+      word-break: break-all;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .btn-email {
+      padding: 8px 16px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: transform 0.15s, opacity 0.15s;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .btn-email:hover:not(:disabled) { transform: translateY(-1px); }
+    .btn-email:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-email.primary { background: linear-gradient(135deg, #3aaa35, #95c11f); color: #fff; }
+    .btn-email.secondary { background: rgba(255,255,255,0.15); color: #fff; }
+    .btn-email.danger { background: rgba(220,50,50,0.3); color: #fff; }
+    .btn-email.small { padding: 4px 10px; font-size: 0.75rem; }
+    .email-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+    .message-list {
+      max-height: 320px;
+      overflow-y: auto;
+      border-radius: 8px;
+      background: rgba(0,0,0,0.2);
+    }
+    .message-item {
+      padding: 10px 14px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .message-item:hover { background: rgba(255,255,255,0.06); }
+    .message-item:last-child { border-bottom: none; }
+    .message-item .msg-subject { font-weight: 600; font-size: 0.9rem; margin-bottom: 2px; }
+    .message-item .msg-from { font-size: 0.8rem; opacity: 0.7; }
+    .message-item .msg-date { font-size: 0.75rem; opacity: 0.5; margin-top: 2px; }
+    .message-item .msg-intro { font-size: 0.8rem; opacity: 0.6; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .message-detail {
+      background: rgba(0,0,0,0.3);
+      border-radius: 8px;
+      padding: 14px;
+      margin-top: 8px;
+    }
+    .message-detail .detail-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 10px;
+      gap: 8px;
+    }
+    .message-detail .detail-subject { font-weight: 600; font-size: 1rem; }
+    .message-detail .detail-meta { font-size: 0.8rem; opacity: 0.7; margin-bottom: 10px; }
+    .message-detail .detail-body {
+      font-size: 0.85rem;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      word-break: break-word;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    .message-detail .detail-body iframe { width: 100%; border: none; min-height: 200px; border-radius: 6px; }
+    .inbox-empty { text-align: center; padding: 24px; opacity: 0.6; font-size: 0.9rem; }
+    .loading-spinner { text-align: center; padding: 16px; opacity: 0.7; }
+    .email-status { font-size: 0.8rem; opacity: 0.7; margin-top: 8px; text-align: center; }
     @media (max-width: 600px) {
       .config-grid { grid-template-columns: 1fr; }
       .card { padding: 16px; }
@@ -265,6 +342,30 @@
     </div>
 
     <div id="resultContainer"></div>
+
+    <div class="card email-card" id="emailCard">
+      <h2>📧 Bandeja de entrada temporal</h2>
+      <div id="emailInitArea">
+        <button class="btn-email primary" id="btnInitEmail" onclick="initEmail()">
+          📬 Iniciar Email Temporal
+        </button>
+      </div>
+      <div id="emailInboxArea" style="display:none">
+        <div class="email-address-display">
+          <span class="address-text" id="emailAddressDisplay"></span>
+          <button class="btn-email secondary small" onclick="copyEmailAddress()">📋 Copiar</button>
+        </div>
+        <div class="email-actions">
+          <button class="btn-email primary small" id="btnRefreshInbox" onclick="loadInbox()">🔄 Refrescar</button>
+          <button class="btn-email danger small" onclick="deleteEmailAccount()">🗑️ Eliminar cuenta</button>
+        </div>
+        <div id="inboxContent">
+          <div class="inbox-empty">Presiona "Refrescar" para cargar los mensajes</div>
+        </div>
+        <div id="messageDetail" style="display:none"></div>
+        <div class="email-status" id="emailStatus"></div>
+      </div>
+    </div>
 
     <div class="footer">
       Hecho con ❤️ para eventos Ybarra | mail.tm + Playwright
@@ -330,7 +431,7 @@
     }
 
     function pollLogs() {
-      fetch(`/api/status?format=sse&lastIndex=${logIndex - 1}`)
+      fetch(`/api/status?lastIndex=${logIndex - 1}`)
         .then(r => r.json())
         .then(data => {
           const container = document.getElementById('logContainer');
@@ -446,6 +547,152 @@
         btn.textContent = '✅ Copiado';
         setTimeout(() => { btn.textContent = '📋 Copiar'; }, 2000);
       });
+    }
+
+    // --- Email Inbox ---
+    let emailAddress = null;
+
+    async function initEmail() {
+      const btn = document.getElementById('btnInitEmail');
+      btn.disabled = true;
+      btn.textContent = '⏳ CREANDO...';
+      setEmailStatus('Creando cuenta de email temporal...');
+
+      try {
+        const res = await fetch('/api/email/init', { method: 'POST' });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+
+        emailAddress = data.address;
+        document.getElementById('emailAddressDisplay').textContent = emailAddress;
+        document.getElementById('emailInitArea').style.display = 'none';
+        document.getElementById('emailInboxArea').style.display = 'block';
+        setEmailStatus(data.restored ? 'Sesión restaurada correctamente' : 'Cuenta nueva creada');
+
+        loadInbox();
+      } catch (err) {
+        setEmailStatus(`Error: ${err.message}`);
+        btn.disabled = false;
+        btn.textContent = '📬 Reintentar';
+      }
+    }
+
+    async function loadInbox() {
+      const container = document.getElementById('inboxContent');
+      const btn = document.getElementById('btnRefreshInbox');
+      btn.disabled = true;
+      container.innerHTML = '<div class="loading-spinner">Cargando mensajes...</div>';
+
+      try {
+        const res = await fetch('/api/email/inbox');
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+
+        if (data.messages.length === 0) {
+          container.innerHTML = '<div class="inbox-empty">Bandeja vacía. Esperando mensajes...</div>';
+        } else {
+          let html = '<div class="message-list">';
+          for (const msg of data.messages) {
+            const date = msg.createdAt ? new Date(msg.createdAt).toLocaleString('es-ES') : '';
+            const fromLabel = typeof msg.from === 'string' ? msg.from : (msg.from ? (msg.from.name || msg.from.address || '') : '');
+            html += '<div class="message-item" onclick="showMessage(\'' + msg.id + '\')">';
+            html += '<div class="msg-subject">' + (msg.subject || '(sin asunto)') + '</div>';
+            html += '<div class="msg-from">' + escapeHtml(fromLabel) + '</div>';
+            html += '<div class="msg-date">' + date + '</div>';
+            if (msg.intro) html += '<div class="msg-intro">' + escapeHtml(msg.intro) + '</div>';
+            html += '</div>';
+          }
+          html += '</div>';
+          container.innerHTML = html;
+        }
+        setEmailStatus(data.messages.length + ' mensajes');
+      } catch (err) {
+        container.innerHTML = '<div class="inbox-empty" style="color:#ff6b6b;">Error: ' + escapeHtml(err.message) + '</div>';
+        setEmailStatus('Error al cargar mensajes');
+      }
+
+      btn.disabled = false;
+    }
+
+    async function showMessage(messageId) {
+      const detailContainer = document.getElementById('messageDetail');
+      detailContainer.style.display = 'block';
+      detailContainer.innerHTML = '<div class="loading-spinner">Cargando mensaje...</div>';
+
+      try {
+        const res = await fetch('/api/email/read/' + encodeURIComponent(messageId));
+        const msg = await res.json();
+        if (msg.error) throw new Error(msg.error);
+
+        const date = msg.createdAt ? new Date(msg.createdAt).toLocaleString('es-ES') : '';
+        const fromLabel = typeof msg.from === 'string' ? msg.from : (msg.from ? (msg.from.name || msg.from.address || '') : '');
+
+        let bodyHtml = '';
+        if (msg.html && msg.html.length > 0 && msg.html[0]) {
+          bodyHtml = '<iframe srcdoc="' + escapeAttr(msg.html[0]) + '" sandbox=""></iframe>';
+        } else if (msg.text && msg.text.length > 0) {
+          const textContent = Array.isArray(msg.text) ? msg.text.join('\n') : msg.text;
+          bodyHtml = '<div class="detail-body">' + escapeHtml(textContent) + '</div>';
+        } else {
+          bodyHtml = '<div class="inbox-empty">(sin contenido)</div>';
+        }
+
+        detailContainer.innerHTML =
+          '<div class="message-detail">' +
+            '<div class="detail-header">' +
+              '<div>' +
+                '<div class="detail-subject">' + escapeHtml(msg.subject || '(sin asunto)') + '</div>' +
+                '<div class="detail-meta">De: ' + escapeHtml(fromLabel) + ' | ' + date + '</div>' +
+              '</div>' +
+              '<button class="btn-email secondary small" onclick="document.getElementById(\'messageDetail\').style.display=\'none\'">Cerrar</button>' +
+            '</div>' +
+            bodyHtml +
+          '</div>';
+      } catch (err) {
+        detailContainer.innerHTML = '<div class="inbox-empty" style="color:#ff6b6b;">Error: ' + escapeHtml(err.message) + '</div>';
+      }
+    }
+
+    function escapeHtml(text) {
+      if (!text) return '';
+      return String(text).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+    }
+
+    function escapeAttr(text) {
+      if (!text) return '';
+      return String(text).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#039;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    async function deleteEmailAccount() {
+      if (!confirm('Eliminar la cuenta de email temporal? Los mensajes se perderan.')) return;
+
+      setEmailStatus('Eliminando cuenta...');
+      try {
+        const res = await fetch('/api/email/delete-account', { method: 'POST' });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+
+        document.getElementById('emailInboxArea').style.display = 'none';
+        document.getElementById('emailInitArea').style.display = 'block';
+        document.getElementById('btnInitEmail').disabled = false;
+        document.getElementById('btnInitEmail').textContent = '📬 Iniciar Email Temporal';
+        setEmailStatus('Cuenta eliminada');
+      } catch (err) {
+        setEmailStatus('Error: ' + err.message);
+      }
+    }
+
+    function copyEmailAddress() {
+      const text = document.getElementById('emailAddressDisplay').textContent;
+      navigator.clipboard.writeText(text).then(() => {
+        const btn = event.target;
+        btn.textContent = 'Copiado';
+        setTimeout(() => { btn.textContent = 'Copiar'; }, 2000);
+      });
+    }
+
+    function setEmailStatus(msg) {
+      document.getElementById('emailStatus').textContent = msg;
     }
   </script>
 </body>
