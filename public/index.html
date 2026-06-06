@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Champion Bot - Ybarra</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #1a2b68 0%, #22afb7 100%);
+      min-height: 100vh;
+      color: #fff;
+      padding: 20px;
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    h1 {
+      text-align: center;
+      font-size: 2rem;
+      margin-bottom: 8px;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+    }
+    .subtitle {
+      text-align: center;
+      opacity: 0.9;
+      margin-bottom: 24px;
+      font-size: 0.95rem;
+    }
+    .card {
+      background: rgba(255,255,255,0.1);
+      backdrop-filter: blur(10px);
+      border-radius: 16px;
+      padding: 24px;
+      margin-bottom: 16px;
+      border: 1px solid rgba(255,255,255,0.15);
+    }
+    .card h2 {
+      font-size: 1.1rem;
+      margin-bottom: 12px;
+      opacity: 0.9;
+    }
+    .config-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .config-item {
+      background: rgba(255,255,255,0.08);
+      border-radius: 8px;
+      padding: 10px 14px;
+    }
+    .config-item .label {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      opacity: 0.7;
+    }
+    .config-item .value {
+      font-size: 1.05rem;
+      font-weight: 600;
+      margin-top: 2px;
+    }
+    .btn-start {
+      display: block;
+      width: 100%;
+      padding: 16px;
+      font-size: 1.2rem;
+      font-weight: 700;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      background: linear-gradient(135deg, #3aaa35, #95c11f);
+      color: #fff;
+      transition: transform 0.15s, opacity 0.15s;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .btn-start:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(58, 170, 53, 0.4);
+    }
+    .btn-start:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .btn-start.running {
+      animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
+    }
+    .log-container {
+      background: rgba(0,0,0,0.4);
+      border-radius: 10px;
+      padding: 16px;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 0.82rem;
+      line-height: 1.6;
+      max-height: 400px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .log-container .log-entry {
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+      padding: 2px 0;
+    }
+    .log-container::-webkit-scrollbar {
+      width: 6px;
+    }
+    .log-container::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .log-container::-webkit-scrollbar-thumb {
+      background: rgba(255,255,255,0.2);
+      border-radius: 3px;
+    }
+    .result-card {
+      background: rgba(58, 170, 53, 0.2);
+      border: 1px solid rgba(58, 170, 53, 0.4);
+      border-radius: 12px;
+      padding: 16px;
+    }
+    .result-card.error {
+      background: rgba(220, 50, 50, 0.2);
+      border-color: rgba(220, 50, 50, 0.4);
+    }
+    .result-card h3 {
+      font-size: 1.1rem;
+      margin-bottom: 10px;
+    }
+    .result-card .field {
+      display: flex;
+      justify-content: space-between;
+      padding: 4px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+    .result-card .field:last-child {
+      border-bottom: none;
+    }
+    .result-card .field .key {
+      opacity: 0.7;
+    }
+    .result-card .field .value {
+      font-weight: 600;
+      text-align: right;
+    }
+    .result-card .prize-code {
+      background: rgba(255,255,255,0.15);
+      border-radius: 8px;
+      padding: 12px;
+      text-align: center;
+      font-size: 1.4rem;
+      font-weight: 700;
+      letter-spacing: 4px;
+      margin-top: 8px;
+    }
+    .status-badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+    .status-badge.idle {
+      background: rgba(255,255,255,0.15);
+    }
+    .status-badge.running {
+      background: rgba(58, 170, 53, 0.3);
+      animation: pulse 1.5s infinite;
+    }
+    .status-badge.done {
+      background: rgba(58, 170, 53, 0.3);
+    }
+    .status-badge.error {
+      background: rgba(220, 50, 50, 0.3);
+    }
+    .prize-images {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+    .prize-images img {
+      max-width: 120px;
+      border-radius: 8px;
+    }
+    .footer {
+      text-align: center;
+      margin-top: 24px;
+      font-size: 0.8rem;
+      opacity: 0.5;
+    }
+    .stats {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.85rem;
+      opacity: 0.7;
+      margin-top: 8px;
+    }
+    .copy-btn {
+      background: rgba(255,255,255,0.15);
+      border: none;
+      color: #fff;
+      padding: 4px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.75rem;
+      margin-left: 8px;
+    }
+    .copy-btn:hover {
+      background: rgba(255,255,255,0.25);
+    }
+    @media (max-width: 600px) {
+      .config-grid { grid-template-columns: 1fr; }
+      .card { padding: 16px; }
+      h1 { font-size: 1.5rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🏆 Champions Bot</h1>
+    <p class="subtitle">Automatización del juego The Champions Burger de Ybarra</p>
+
+    <div class="card">
+      <h2>⚙️ Configuración</h2>
+      <div class="config-grid">
+        <div class="config-item">
+          <div class="label">Ciudad</div>
+          <div class="value" id="cityDisplay">SAN FERNANDO</div>
+        </div>
+        <div class="config-item">
+          <div class="label">Código Ciudad</div>
+          <div class="value" id="codeDisplay">CEDDF3DE</div>
+        </div>
+        <div class="config-item">
+          <div class="label">Email Temp</div>
+          <div class="value">mail.tm</div>
+        </div>
+        <div class="config-item">
+          <div class="label">Estado</div>
+          <div class="value"><span class="status-badge idle" id="statusBadge">🟡 INACTIVO</span></div>
+        </div>
+      </div>
+    </div>
+
+    <button class="btn-start" id="btnStart" onclick="startBot()">
+      🚀 INICIAR BOT
+    </button>
+
+    <div class="card">
+      <h2>📋 Logs en vivo</h2>
+      <div class="log-container" id="logContainer">
+        Presiona "INICIAR BOT" para comenzar la automatización...
+      </div>
+      <div class="stats">
+        <span id="logCount">0 líneas</span>
+        <span id="timerDisplay">--:--</span>
+      </div>
+    </div>
+
+    <div id="resultContainer"></div>
+
+    <div class="footer">
+      Hecho con ❤️ para eventos Ybarra | mail.tm + Playwright
+    </div>
+  </div>
+
+  <script>
+    let logIndex = 0;
+    let startTime = null;
+    let timerInterval = null;
+    let statusPollInterval = null;
+
+    document.getElementById('btnStart').addEventListener('click', startBot);
+
+    function startBot() {
+      const btn = document.getElementById('btnStart');
+      btn.disabled = true;
+      btn.textContent = '⏳ INICIANDO...';
+      btn.classList.add('running');
+
+      document.getElementById('logContainer').textContent = '';
+      logIndex = 0;
+      document.getElementById('resultContainer').innerHTML = '';
+
+      document.getElementById('statusBadge').textContent = '🟢 EJECUTANDO';
+      document.getElementById('statusBadge').className = 'status-badge running';
+
+      startTime = Date.now();
+      if (timerInterval) clearInterval(timerInterval);
+      timerInterval = setInterval(updateTimer, 1000);
+
+      fetch('/api/start', { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+          if (data.error) {
+            addLog(`❌ Error: ${data.error}`);
+            btn.disabled = false;
+            btn.textContent = '🚀 REINICIAR BOT';
+            btn.classList.remove('running');
+            document.getElementById('statusBadge').textContent = '🔴 ERROR';
+            document.getElementById('statusBadge').className = 'status-badge error';
+            return;
+          }
+          btn.textContent = '🔄 EJECUTANDO...';
+          pollLogs();
+        })
+        .catch(err => {
+          addLog(`❌ Error de conexión: ${err.message}`);
+          btn.disabled = false;
+          btn.textContent = '🚀 REINICIAR BOT';
+          btn.classList.remove('running');
+        });
+    }
+
+    function addLog(msg, container) {
+      container = container || document.getElementById('logContainer');
+      const div = document.createElement('div');
+      div.className = 'log-entry';
+      div.textContent = msg;
+      container.appendChild(div);
+      container.scrollTop = container.scrollHeight;
+      document.getElementById('logCount').textContent = `${container.children.length} líneas`;
+    }
+
+    function pollLogs() {
+      fetch(`/api/status?format=sse&lastIndex=${logIndex - 1}`)
+        .then(r => r.json())
+        .then(data => {
+          const container = document.getElementById('logContainer');
+
+          if (data.logs && data.logs.length > 0) {
+            for (const log of data.logs) {
+              addLog(log, container);
+            }
+            logIndex += data.logs.length;
+          }
+
+          if (data.result) {
+            handleResult(data.result);
+            return;
+          }
+
+          if (data.running) {
+            setTimeout(pollLogs, 800);
+          } else {
+            setTimeout(pollLogs, 500);
+          }
+        })
+        .catch(() => {
+          setTimeout(pollLogs, 1000);
+        });
+    }
+
+    function handleResult(result) {
+      const btn = document.getElementById('btnStart');
+      btn.disabled = false;
+      btn.textContent = '🚀 REINICIAR BOT';
+      btn.classList.remove('running');
+
+      if (timerInterval) clearInterval(timerInterval);
+
+      const container = document.getElementById('resultContainer');
+
+      if (result.success) {
+        document.getElementById('statusBadge').textContent = '✅ COMPLETADO';
+        document.getElementById('statusBadge').className = 'status-badge done';
+
+        const prizeType = result.prizeType || 'desconocido';
+        const prizeEmoji = {
+          'bebida': '🥤', 'patatas': '🍟', 'hamburguesa': '🍔',
+          'descuento_30': '🏷️', 'salsas': '🧂', 'dipeo': '📦'
+        }[prizeType] || '🎁';
+
+        let prizeHtml = `
+          <div class="card result-card">
+            <h3>${prizeEmoji} ¡Premio obtenido!</h3>
+            <div class="field"><span class="key">Tipo de premio</span><span class="value">${prizeType.toUpperCase()}</span></div>
+            <div class="field"><span class="key">Email usado</span><span class="value">${result.emailUsed || 'N/A'}</span></div>
+            <div class="field"><span class="key">Ciudad</span><span class="value">${result.city}</span></div>
+        `;
+
+        if (result.exchangeCode) {
+          prizeHtml += `
+            <div class="field"><span class="key">Código de canjeo</span><span class="value">
+              <span style="font-family: monospace; font-size: 1.2rem; letter-spacing: 2px;">${result.exchangeCode}</span>
+              <button class="copy-btn" onclick="copyToClipboard('${result.exchangeCode}')">📋 Copiar</button>
+            </span></div>
+          `;
+        }
+
+        if (result.prize && result.prize.images && result.prize.images.length > 0) {
+          prizeHtml += `<div class="prize-images">`;
+          for (const img of result.prize.images) {
+            prizeHtml += `<img src="${img}" alt="Prize image" onerror="this.style.display='none'">`;
+          }
+          prizeHtml += `</div>`;
+        }
+
+        prizeHtml += `
+            <div class="field"><span class="key">Timestamp</span><span class="value">${new Date(result.timestamp).toLocaleString('es-ES')}</span></div>
+          </div>
+        `;
+
+        container.innerHTML = prizeHtml;
+
+        // Intentar cargar la imagen del premio
+        if (result.prize && result.prize.text) {
+          addLog(`🏆 ${result.prize.text.substring(0, 150)}`);
+        }
+        if (result.exchangeCode) {
+          addLog(`🔑 Código de canjeo: ${result.exchangeCode}`);
+        }
+      } else {
+        document.getElementById('statusBadge').textContent = '❌ ERROR';
+        document.getElementById('statusBadge').className = 'status-badge error';
+
+        container.innerHTML = `
+          <div class="card result-card error">
+            <h3>❌ Error en la ejecución</h3>
+            <div class="field"><span class="key">Etapa</span><span class="value">${result.stage || 'N/A'}</span></div>
+            <div class="field"><span class="key">Error</span><span class="value">${result.error || result.message || 'Error desconocido'}</span></div>
+            <div class="field"><span class="key">Timestamp</span><span class="value">${new Date(result.timestamp).toLocaleString('es-ES')}</span></div>
+          </div>
+        `;
+      }
+    }
+
+    function updateTimer() {
+      if (!startTime) return;
+      const elapsed = Math.floor((Date.now() - startTime) / 1000);
+      const mins = String(Math.floor(elapsed / 60)).padStart(2, '0');
+      const secs = String(elapsed % 60).padStart(2, '0');
+      document.getElementById('timerDisplay').textContent = `${mins}:${secs}`;
+    }
+
+    function copyToClipboard(text) {
+      navigator.clipboard.writeText(text).then(() => {
+        const btn = event.target;
+        btn.textContent = '✅ Copiado';
+        setTimeout(() => { btn.textContent = '📋 Copiar'; }, 2000);
+      });
+    }
+  </script>
+</body>
+</html>
