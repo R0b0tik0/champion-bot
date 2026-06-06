@@ -249,7 +249,6 @@ async function runBot(options = {}) {
     });
 
     log('=== PREMIO OBTENIDO ===');
-    log(`Texto premio: ${(prizeInfo?.text || '').substring(0, 200)}`);
 
     // Si hay imágenes de premio, identificar qué premio es
     const prizeType = identifyPrize(prizeInfo, log);
